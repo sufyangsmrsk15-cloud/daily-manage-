@@ -1,14 +1,19 @@
 import os
-import time
-import asyncio
-from datetime import datetime
 from telegram import Bot
 
 # --- Load environment variables ---
-BOT_TOKEN = os.getenv(""TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# --- Self-check for safety ---
+if not BOT_TOKEN or not CHAT_ID:
+    print("⚠️ Missing or invalid environment variables! Check TELEGRAM_BOT_TOKEN and CHAT_ID on Render.")
+    exit()
+else:
+    print("✅ Environment variables loaded successfully!")
+
 bot = Bot(token=BOT_TOKEN)
+
 
 # --- Your Billionaire Routine Schedule ---
 SCHEDULE = [
