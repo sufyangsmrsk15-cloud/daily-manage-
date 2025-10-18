@@ -1,7 +1,9 @@
 services:
   - type: worker
-    name: jani-life-system-bot
+    name: jani-life-system
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python bot.py"
-    autoDeploy: true
+    buildCommand: ""
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
