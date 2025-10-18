@@ -1,39 +1,66 @@
 #!/usr/bin/env python3
+"""
+JANI LIFE SYSTEM 3.0 💎
+Telegram Daily Routine Reminder Bot
+- Built for Python 3.10
+- Sends motivational reminders according to your billionaire-style schedule
+"""
+
 import os
 import json
 import pytz
 import logging
-from datetime import time as dtime
 from functools import partial
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- Config ---
+# ========== Configuration ==========
 TIMEZONE = "Asia/Karachi"
 SUBSCRIBERS_FILE = "subscribers.json"
-BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not BOT_TOKEN:
-    raise RuntimeError("❌ BOT_TOKEN not found in environment variables!")
+    raise RuntimeError("❌ TELEGRAM_BOT_TOKEN not found in environment variables!")
 
-# --- Logging ---
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("JANI_BOT")
+# Logging setup
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- Schedule ---
+# ========== Schedule ==========
 SCHEDULE = {
-    "wake_up": ("05:00", "🌅 *Wake up + Hydrate* — 2 glasses of water. No phone for first 15 min."),
-    "gratitude": ("05:15", "🧘 *Gratitude + Quran / Breathing* — calm, focused start."),
-    "fajr": ("05:45", "🕌 *Fajr Namaz* — spiritual start."),
-    "exercise": ("06:00", "💪 *Exercise (15–30 min)* — walk + light workout."),
-    "english_main": ("07:00", "🗣️ *English Practice (Main session — 2.5h)* — mimic, record, shadowing."),
-    "ai_block": ("10:00", "⚙️ *AI Work Block #1* — creative focus."),
-    "trading_start": ("17:50", "💰 *Trading Session (Main)* — 5:50 PM to 8:30 PM, full focus."),
-    "sleep_time": ("23:15", "😴 *Sleep time* — phone away, lights off.")
+    "wake_up":         ("05:00", "🌅 *Wake up + Hydrate* — 2 glasses of water, no phone for 15 min."),
+    "gratitude":       ("05:15", "🧘 *Gratitude + Quran / Breathing* — calm focused start."),
+    "fajr":            ("05:45", "🕌 *Fajr Namaz* — spiritual start."),
+    "exercise":        ("06:00", "💪 *Exercise (15–30 min)* — walk + light workout."),
+    "breakfast":       ("06:30", "🍳 *Shower + Healthy breakfast* — energize your day."),
+    "english_main":    ("07:00", "🗣️ *English Speaking (2.5h)* — mimic, record, and shadow."),
+    "tea_journal":     ("09:30", "☕ *Tea / Journal / Light phone time* — refresh."),
+    "ai_block_1":      ("10:00", "⚙️ *AI Work Block #1* — deep learning & building."),
+    "short_break":     ("11:00", "🌿 *Short break* — stretch & breathe."),
+    "ai_block_2":      ("11:30", "⚙️ *AI Work Block #2* — execution mode."),
+    "dhuhr":           ("13:30", "🕌 *Dhuhr Namaz* — recharge spiritually."),
+    "lunch_nap":       ("13:30", "🍽️ *Lunch + Power Nap* — recharge body & mind."),
+    "ai_block_3":      ("14:00", "🧠 *AI Work Block #3* — improvement / projects."),
+    "family_time":     ("15:30", "❤️ *Family / Chill time* — connect with loved ones."),
+    "asr":             ("16:15", "🕌 *Asr Namaz* — focus reset."),
+    "mini_english":    ("16:30", "💬 *Mini English Session (30 min)* — daily refresh."),
+    "trading_prep":    ("17:00", "📊 *Trading Prep* — analyze charts before NY open."),
+    "maghrib":         ("17:40", "🕌 *Maghrib Namaz* — short break."),
+    "trading":         ("17:50", "💰 *Trading Session (Main)* — 5:50 PM to 8:30 PM, no distractions."),
+    "isha_dinner":     ("20:30", "🕌🍽️ *Isha Namaz + Dinner* — peace & gratitude."),
+    "friends":         ("21:00", "❤️ *Family / Friends time* — relax."),
+    "instagram":       ("21:45", "📱 *Instagram / Chill (30 min max)* — control leisure."),
+    "review":          ("22:15", "🧠 *Daily Review + Plan Tomorrow* — journal 3 wins."),
+    "reading":         ("22:45", "📖 *Reading / Quran / Calm music* — prep for sleep."),
+    "sleep":           ("23:15", "😴 *Sleep Time* — lights off, phone away."),
 }
+
+# ========== Helper Functions ==========
+def hhmm_to_hm(s):
+    h, m = s.split(":")
+    return int(h), int(m)
 
 def load_subscribers():
     if not os.path.exists(SUBSCRIBERS_FILE):
@@ -41,7 +68,7 @@ def load_subscribers():
     try:
         with open(SUBSCRIBERS_FILE, "r") as f:
             return json.load(f)
-    except Exception:
+    except json.JSONDecodeError:
         return []
 
 def save_subscribers(subs):
@@ -53,72 +80,62 @@ def add_subscriber(chat_id):
     if chat_id not in subs:
         subs.append(chat_id)
         save_subscribers(subs)
-        logger.info(f"Added subscriber: {chat_id}")
+        logger.info(f"✅ New subscriber added: {chat_id}")
 
 def remove_subscriber(chat_id):
     subs = load_subscribers()
     if chat_id in subs:
         subs.remove(chat_id)
         save_subscribers(subs)
-        logger.info(f"Removed subscriber: {chat_id}")
+        logger.info(f"❌ Subscriber removed: {chat_id}")
 
-# --- Commands ---
+# ========== Telegram Handlers ==========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     add_subscriber(chat_id)
-    await update.message.reply_text(
-        "🔥 *JANI LIFE SYSTEM reminders activated!*\n\n"
-        "You’ll now receive daily alerts in Karachi timezone.\n"
-        "Use /stop anytime to pause alerts.",
-        parse_mode=ParseMode.MARKDOWN,
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🔥 *Welcome to JANI LIFE SYSTEM!* 🔔\n\nDaily billionaire-style reminders are now active.\nUse /stop anytime to pause notifications.",
+        parse_mode="Markdown",
     )
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     remove_subscriber(chat_id)
-    await update.message.reply_text("Notifications stopped. Use /start to resume.")
+    await context.bot.send_message(chat_id=chat_id, text="Notifications stopped. Send /start to resume.")
 
-async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Commands:\n/start – Subscribe\n/stop – Unsubscribe")
-
-# --- Reminder ---
-async def send_reminder(app, msg):
+# ========== Send Reminder ==========
+async def send_reminder(application, message):
     subs = load_subscribers()
-    if not subs:
-        return
     for chat_id in subs:
         try:
-            await app.bot.send_message(chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN)
+            await application.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
         except Exception as e:
-            logger.error(f"Failed to send to {chat_id}: {e}")
+            logger.error(f"Error sending message to {chat_id}: {e}")
 
-# --- Scheduler ---
-async def setup_scheduler(app):
+# ========== Schedule Setup ==========
+def schedule_jobs(application, scheduler):
     tz = pytz.timezone(TIMEZONE)
-    scheduler = AsyncIOScheduler(timezone=tz)
     for key, (hhmm, msg) in SCHEDULE.items():
-        hour, minute = map(int, hhmm.split(":"))
-        scheduler.add_job(
-            partial(send_reminder, app, msg),
-            CronTrigger(hour=hour, minute=minute, timezone=tz),
-            id=f"job_{key}",
-            replace_existing=True,
-        )
-        logger.info(f"📅 Scheduled: {key} at {hhmm}")
-    scheduler.start()
-    logger.info("✅ Scheduler started successfully.")
+        hour, minute = hhmm_to_hm(hhmm)
+        trigger = CronTrigger(hour=hour, minute=minute, timezone=tz)
+        scheduler.add_job(partial(application.create_task, send_reminder(application, msg)),
+                          trigger=trigger, id=f"job_{key}", replace_existing=True)
+        logger.info(f"📅 Scheduled {key} at {hhmm}")
 
-# --- Main ---
+# ========== Main ==========
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))
-    app.add_handler(CommandHandler("help", help_cmd))
-    await setup_scheduler(app)
-    logger.info("🚀 Bot running...")
+
+    scheduler = BackgroundScheduler()
+    schedule_jobs(app, scheduler)
+    scheduler.start()
+
+    logger.info("🚀 JANI LIFE SYSTEM started successfully!")
     await app.run_polling()
 
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-
