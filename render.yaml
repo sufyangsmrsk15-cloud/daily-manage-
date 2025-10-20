@@ -1,5 +1,5 @@
 services:
-  - type: worker
+  - type: web
     name: jani-life-system
     env: python
     plan: free
@@ -8,4 +8,3 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10
-
